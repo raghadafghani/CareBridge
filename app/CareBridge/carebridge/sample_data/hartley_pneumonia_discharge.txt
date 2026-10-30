@@ -1,0 +1,39 @@
+=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ===
+DISCHARGE NOTE
+Medical admission
+Patient: Pamela Hartley
+Age: 73
+Discharged home: July 18, 2026
+Admitted: July 14, 2026
+
+STATUS AT DISCHARGE
+Afebrile for 48 hours. Mobilising independently. Eating and drinking normally.
+
+FINAL DIAGNOSES
+Community-acquired pneumonia, resolved.
+Type 2 diabetes, stable.
+
+HOSPITAL COURSE
+Four-day admission. Intravenous benzylpenicillin and doxycycline, stepped down to oral amoxicillin on day 3. Afebrile from day 2. Oxygen weaned on day 2.
+
+INVESTIGATIONS PENDING
+Sputum culture still pending.
+Repeat chest X-ray at 6 weeks to confirm resolution.
+
+DISCHARGE MEDICATIONS
+1. Amoxicillin 1 g by mouth three times daily for 3 more days, to complete 7 days total. This medicine is new.
+2. Metformin, unchanged from home. Dose not restated in this note.
+3. Perindopril, unchanged from home. Dose not restated in this note.
+
+FOLLOW-UP
+GP review in 1 week.
+Respiratory clinic if symptoms persist beyond 6 weeks.
+Repeat chest X-ray at 6 weeks.
+
+PATIENT INSTRUCTIONS
+Return if fever, worsening breathlessness, or new chest pain.
+Finish the full antibiotic course.
+You may still feel tired. A mild cough can last up to 30 days.
+Use the incentive spirometer as shown.
+Drink plenty of fluids unless your clinician has told you not to.
+Rest more often than usual.

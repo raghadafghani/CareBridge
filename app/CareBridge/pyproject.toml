@@ -1,0 +1,20 @@
+[project]
+name = "carebridge-runtime"
+version = "0.1.0"
+description = "CareBridge entrypoint for Amazon Bedrock AgentCore Runtime."
+requires-python = ">=3.11"
+dependencies = [
+  "aws-opentelemetry-distro>=0.10",
+  "bedrock-agentcore>=0.1",
+  "boto3>=1.35",
+  "pydantic>=2.7",
+  "pypdf>=5",
+  "strands-agents>=1.0",
+]
+
+[tool.agentcore]
+entrypoint = "main.py"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

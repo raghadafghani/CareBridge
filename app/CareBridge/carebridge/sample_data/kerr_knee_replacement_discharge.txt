@@ -1,0 +1,36 @@
+=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ===
+DISCHARGE NOTE
+Surgical admission
+Patient: Douglas Kerr
+Age: 68
+Procedure: right total knee replacement
+Day of discharge: day 4 after surgery
+
+STATUS AT DISCHARGE
+Walking 40 metres with a frame. Wound dry. Pain controlled on oral analgesia.
+
+FINAL DIAGNOSIS
+Osteoarthritis of the right knee, treated by total knee replacement.
+
+HOSPITAL COURSE
+Uncomplicated. Physiotherapy from day 1. Haemoglobin fell to 98. Not transfused.
+
+INVESTIGATIONS PENDING
+Full blood count in 1 week.
+
+DISCHARGE MEDICATIONS
+1. Enoxaparin 40 mg subcutaneous once daily, to complete 14 days. This medicine is new.
+2. Paracetamol 1 g by mouth four times daily. This medicine is new.
+3. Oxycodone 5 mg by mouth as needed. 10 tablets supplied. Stop by 2 weeks. This medicine is new.
+4. Usual antihypertensives, unchanged. Names and doses are not written in this note.
+
+FOLLOW-UP
+Wound check with the practice nurse at day 10 to 14.
+Surgeon's rooms at 6 weeks.
+Outpatient physiotherapy twice weekly.
+
+PATIENT INSTRUCTIONS
+Weight bear as tolerated.
+Return for calf pain, wound discharge, fever, or shortness of breath.
+
+The note does not say when he may drive or return to work.

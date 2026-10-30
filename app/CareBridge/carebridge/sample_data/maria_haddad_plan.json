@@ -1,0 +1,96 @@
+{
+  "id": "maria-haddad",
+  "patient": {
+    "name": "Maria Haddad",
+    "discharged": "Oct 28, 2026",
+    "hospital": "St. Luke's Medical Center",
+    "diagnosis": "Community-acquired pneumonia",
+    "plain": "You were treated for a lung infection. Your lungs are healing, but you need to finish your antibiotics, rest, and watch your breathing closely for the next two weeks."
+  },
+  "meds": [
+    {
+      "name": "Amoxicillin-Clavulanate",
+      "dose": "875 mg tablet",
+      "purpose": "Antibiotic — clears the lung infection",
+      "times": ["08:00", "20:00"],
+      "until": "Nov 4",
+      "note": "Take with food"
+    },
+    {
+      "name": "Metoprolol",
+      "dose": "25 mg tablet",
+      "purpose": "Keeps heart rate steady",
+      "times": ["08:00"],
+      "until": "Ongoing"
+    },
+    {
+      "name": "Paracetamol",
+      "dose": "500 mg, as needed",
+      "purpose": "Fever or chest discomfort",
+      "times": ["Up to 4×/day"],
+      "until": "As needed",
+      "note": "Max 3 g per day"
+    },
+    {
+      "name": "Guaifenesin",
+      "dose": "10 ml syrup",
+      "purpose": "Loosens mucus",
+      "times": ["08:00", "14:00", "20:00"],
+      "until": "Nov 2"
+    }
+  ],
+  "appointments": [
+    {
+      "date": "Nov 3",
+      "day": "Tue",
+      "title": "Primary care follow-up",
+      "who": "Dr. Samir Khoury",
+      "time": "10:30"
+    },
+    {
+      "date": "Nov 6",
+      "day": "Fri",
+      "title": "Chest X-ray",
+      "who": "Radiology, Floor 2",
+      "time": "09:00"
+    },
+    {
+      "date": "Nov 12",
+      "day": "Thu",
+      "title": "Pulmonology review",
+      "who": "Dr. Lena Abboud",
+      "time": "14:15"
+    }
+  ],
+  "checklist": [
+    "Check temperature morning and evening",
+    "Breathing exercises with spirometer — 10 breaths, every 2 hours",
+    "Drink at least 8 glasses of water",
+    "Short walk around the home, 3 times",
+    "Sleep with head slightly raised",
+    "No smoking or second-hand smoke"
+  ],
+  "flags": [
+    {
+      "level": "confirm",
+      "title": "Metoprolol duration not stated",
+      "detail": "The report lists Metoprolol but not whether it's new or long-term. Ask your doctor before stopping."
+    },
+    {
+      "level": "confirm",
+      "title": "Conflicting antibiotic dose",
+      "detail": "Page 2 says 875 mg twice daily; page 4 says 500 mg three times daily."
+    },
+    {
+      "level": "missing",
+      "title": "No guidance on returning to work",
+      "detail": "The discharge note does not mention when normal activity can resume."
+    }
+  ],
+  "warnings": [
+    "Shortness of breath at rest",
+    "Fever above 38.5°C after 3 days of antibiotics",
+    "Chest pain or coughing blood",
+    "Confusion or bluish lips"
+  ]
+}

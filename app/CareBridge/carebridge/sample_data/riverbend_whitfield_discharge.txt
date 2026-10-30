@@ -1,0 +1,28 @@
+=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ===
+DISCHARGE SUMMARY
+RIVERBEND MEDICAL CENTER
+Department of Internal Medicine
+4400 Riverbend Way, Portland, OR 97209
+
+Patient name: Margaret A. Whitfield
+Date of birth: 03/14/1957
+MRN: RB-2214-0987
+Address: 2286 Alder Grove Lane, Beaverton, OR 97005
+Insurance: Cascadia Health Plan
+Admitted: May 2, 2026
+Discharged: May 6, 2026
+
+HOSPITAL COURSE
+Ms. Whitfield is a 69-year-old woman admitted via the emergency department with community-acquired pneumonia. She was treated with IV ceftriaxone and azithromycin, transitioned to oral therapy on hospital day 3, and remained afebrile for 48 hours prior to discharge. Her daughter, Karen Whitfield-Ross, was present at discharge planning and will assist with medications at home.
+
+DISCHARGE MEDICATIONS
+1. Amoxicillin-clavulanate 875 mg by mouth twice daily for 5 days.
+2. Albuterol inhaler, as needed, for wheeze or shortness of breath.
+3. Resume home lisinopril 10 mg by mouth once daily. This was a home medicine. No stop date is written.
+
+FOLLOW-UP
+Follow up with Dr. Nathan Obi at Riverbend Internal Medicine on May 13, 2026 at 10:30 AM.
+
+Return to the emergency department for recurrent fever, shortness of breath, or chest pain.
+
+The note does not say when she may return to work, and it does not list a daily home-care checklist.

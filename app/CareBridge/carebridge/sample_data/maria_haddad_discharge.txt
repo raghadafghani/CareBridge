@@ -1,0 +1,43 @@
+=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ===
+ST. LUKE'S MEDICAL CENTER
+Discharge summary
+Patient: Maria Haddad
+Discharged: October 28, 2026
+Attending: Dr. Samir Khoury
+
+Diagnosis
+Community-acquired pneumonia.
+
+What this means, in plain words
+You were treated for a lung infection. Your lungs are healing, but you need to finish your antibiotics, rest, and watch your breathing closely for the next two weeks.
+
+PAGE 2 — Medications
+1. Amoxicillin-Clavulanate 875 mg tablet by mouth twice daily at 08:00 and 20:00, with food, through November 4, 2026. Purpose: antibiotic to clear the lung infection.
+2. Metoprolol 25 mg tablet by mouth once daily at 08:00. Purpose: keeps heart rate steady. No stop date is written. The note does not say whether this medicine is new or a long-term home medicine.
+3. Paracetamol 500 mg by mouth as needed for fever or chest discomfort, up to 4 times a day. Maximum 3 g per day. Continue as needed.
+4. Guaifenesin 10 ml syrup by mouth at 08:00, 14:00, and 20:00 through November 2, 2026. Purpose: loosens mucus.
+
+PAGE 3 — Follow-up
+- Tuesday, November 3, 2026 at 10:30. Primary care follow-up with Dr. Samir Khoury.
+- Friday, November 6, 2026 at 09:00. Chest X-ray, Radiology, Floor 2.
+- Thursday, November 12, 2026 at 14:15. Pulmonology review with Dr. Lena Abboud.
+
+Home care, every day
+- Check temperature morning and evening.
+- Breathing exercises with the spirometer: 10 breaths, every 2 hours.
+- Drink at least 8 glasses of water.
+- Short walk around the home, 3 times.
+- Sleep with head slightly raised.
+- No smoking or second-hand smoke.
+
+Return to the emergency department for
+- Shortness of breath at rest
+- Fever above 38.5°C after 3 days of antibiotics
+- Chest pain or coughing blood
+- Confusion or bluish lips
+
+PAGE 4 — Addendum, medications
+Pharmacy copy: Amoxicillin-Clavulanate 500 mg by mouth three times daily.
+This line does not match page 2.
+
+The discharge note does not say when Maria may return to work or resume normal activity.

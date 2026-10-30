@@ -1,0 +1,42 @@
+{
+  "name": "CareBridge",
+  "version": 2,
+  "tags": {
+    "agentcore:created-by": "agentcore-cli",
+    "agentcore:project-name": "CareBridge"
+  },
+  "runtimes": [
+    {
+      "name": "CareBridge",
+      "build": "CodeZip",
+      "entrypoint": "app/CareBridge/main.py",
+      "codeLocation": ".",
+      "runtimeVersion": "PYTHON_3_13",
+      "networkMode": "PUBLIC",
+      "protocol": "HTTP",
+      "instrumentation": {
+        "enableOtel": true
+      },
+      "envVars": [
+        { "name": "CAREBRIDGE_MODEL_ID", "value": "us.amazon.nova-pro-v1:0" },
+        { "name": "CAREBRIDGE_CHECKIN_MODEL_ID", "value": "us.amazon.nova-lite-v1:0" },
+        { "name": "CAREBRIDGE_LLM_STEERING", "value": "0" },
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "CAREBRIDGE_DATA_DIR", "value": "/tmp/carebridge" }
+      ]
+    }
+  ],
+  "memories": [
+    {
+      "name": "CareBridgeMemory",
+      "eventExpiryDuration": 30,
+      "strategies": []
+    }
+  ],
+  "credentials": [],
+  "payments": [],
+  "evaluators": [],
+  "onlineEvalConfigs": [],
+  "agentCoreGateways": [],
+  "policyEngines": []
+}
