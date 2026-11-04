@@ -113,6 +113,39 @@ export async function fetchPlan(planId: string): Promise<CarePlan> {
   return plan;
 }
 
+export type CalendarStatus = {
+  configured: boolean;
+  connected: boolean;
+  email?: string | null;
+};
+
+export async function calendarStatus(): Promise<CalendarStatus> {
+  const response = await fetch(`${apiBase()}/v1/calendar/status`);
+  if (!response.ok) throw new Error(await detail(response));
+  return (await response.json()) as CalendarStatus;
+}
+
+export function calendarConnectUrl() {
+  return `${apiBase()}/v1/calendar/connect`;
+}
+
+export async function pushAppointments(
+  planId: string,
+): Promise<{ added: number; updated: number }> {
+  const response = await fetch(`${apiBase()}/v1/calendar/events`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ plan_id: planId }),
+  });
+  if (!response.ok) throw new Error(await detail(response));
+  return (await response.json()) as { added: number; updated: number };
+}
+
+export async function disconnectCalendar(): Promise<void> {
+  const response = await fetch(`${apiBase()}/v1/calendar/disconnect`, { method: "POST" });
+  if (!response.ok) throw new Error(await detail(response));
+}
+
 export async function postCheckIn(planId: string, message: string): Promise<CheckInResult> {
   const response = await fetch(`${apiBase()}/v1/check-ins`, {
     method: "POST",

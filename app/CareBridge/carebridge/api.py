@@ -17,13 +17,15 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from carebridge import __version__
-from carebridge.documents import extract_upload
+from carebridge.config import get_settings
+from carebridge.documents import MAX_UPLOAD_BYTES, extract_upload
 from carebridge.errors import CareBridgeError, DocumentError, PlanNotFound
+from carebridge.google_calendar import app_return, connect_url, disconnect, finish_oauth, push_plan, status as calendar_status
 from carebridge.runtime import invoke_payload
 from carebridge.schema import CarePlan
 from carebridge.service import PROACTIVE_CHECKIN, extract_care_plan, run_check_in, seed_sample_plan
@@ -35,7 +37,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="CareBridge", version=__version__)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(get_settings().cors_origins),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -57,6 +59,10 @@ class ProactiveRequest(BaseModel):
     session_id: str = "carebridge-check-in"
 
 
+class CalendarPush(BaseModel):
+    plan_id: str
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
@@ -70,7 +76,7 @@ def extract_text(body: TextDocument) -> CarePlan:
 
 @app.post("/v1/documents/file", response_model=CarePlan)
 async def extract_file(file: UploadFile = File(...)) -> CarePlan:
-    data = await file.read()
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
     text = extract_upload(file.filename or "discharge", data)
     plan, _trace, _reply = extract_care_plan(text, file.filename or "discharge.txt")
     return plan
@@ -110,6 +116,44 @@ def proactive(body: ProactiveRequest) -> dict:
     """Scheduled recovery check-in. EventBridge can POST this, or call the AgentCore action."""
     reply = run_check_in(body.plan_id, body.session_id, PROACTIVE_CHECKIN)
     return reply.model_dump()
+
+
+@app.get("/v1/calendar/status")
+def google_calendar_status() -> dict:
+    return calendar_status()
+
+
+@app.get("/v1/calendar/connect")
+def google_calendar_connect():
+    """Send the browser to Google. A missing client id returns the plan page with a setup hint."""
+    try:
+        return RedirectResponse(connect_url())
+    except CareBridgeError:
+        return RedirectResponse(f"{app_return()}?calendar=setup")
+
+
+@app.get("/v1/calendar/callback")
+def google_calendar_callback(code: str = "", state: str = "", error: str = ""):
+    target = app_return()
+    if error or not code:
+        return RedirectResponse(f"{target}?calendar=denied")
+    try:
+        finish_oauth(code, state)
+    except CareBridgeError:
+        return RedirectResponse(f"{target}?calendar=error")
+    return RedirectResponse(f"{target}?calendar=connected")
+
+
+@app.post("/v1/calendar/disconnect")
+def google_calendar_disconnect() -> dict[str, bool]:
+    disconnect()
+    return {"connected": False}
+
+
+@app.post("/v1/calendar/events")
+def google_calendar_events(body: CalendarPush) -> dict[str, int]:
+    """Create or update one Google Calendar event per visit on this plan."""
+    return push_plan(CareStore().get_plan(body.plan_id))
 
 
 @app.post("/v1/agent")

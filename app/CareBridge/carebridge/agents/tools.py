@@ -26,7 +26,13 @@ from carebridge.errors import CareBridgeError, DocumentError, PlanNotFound
 from carebridge.plans.quality import complete_plan, normalize_plan_payload, plan_problems
 from carebridge.schema import CarePlan
 from carebridge.plans.store import CareStore, safe_id
-from carebridge.safety.turn_state import active_session, set_turn_assessment
+from carebridge.safety.doctor_mail import notify_escalation
+from carebridge.safety.turn_state import (
+    activate_document,
+    active_document,
+    active_session,
+    set_turn_assessment,
+)
 from carebridge.safety.warning_signs import evaluate_report, render_assessment
 
 _MAX_DOCUMENT_CHARS = 20_000
@@ -59,30 +65,35 @@ def read_discharge_document(document_id: str) -> str:
         text = _store().read_document(document_id)
     except DocumentError as exc:
         return f"ERROR: {exc}"
+    activate_document(document_id)
     if len(text) > _MAX_DOCUMENT_CHARS:
         text = text[:_MAX_DOCUMENT_CHARS] + "\n[truncated]"
     return text
 
 
 @tool
-def commit_care_plan(plan_json: str) -> str:
+def commit_care_plan(plan_json: str, document_id: str = "") -> str:
     """Validate and save the structured care plan.
 
     Call this only after read_discharge_document. plan_json uses the fields
     patient, meds, appointments, checklist, flags, and warnings.
     patient needs name, discharged, hospital, diagnosis, and plain.
     Each med needs name, dose, purpose, times, and until.
+    times is a list of labels such as "after breakfast" or "before bed", never a clock time.
+    Spread two medicines that would share a label. Leave as-needed doses as written.
     Flag level is "confirm" or "missing".
     If this returns ERROR, fix the JSON and call the tool again.
     Do not invent an id; omit id and one will be assigned from the patient name.
 
     Args:
         plan_json: A JSON object matching the care plan fields.
+        document_id: Optional id of the discharge document that was read.
     """
     try:
         payload = normalize_plan_payload(_load_json_object(plan_json))
         payload["id"] = safe_id(str(payload.get("id") or _name_slug(payload)))
-        source = _store().latest_document_text()
+        resolved_doc = document_id.strip() or active_document()
+        source = _store().source_document_text(resolved_doc)
         plan = complete_plan(CarePlan.model_validate(payload), source)
         problems = plan_problems(plan, source)
         if problems:
@@ -130,6 +141,13 @@ def load_care_plan(plan_id: str) -> str:
             for med in plan.meds
         ],
     ]
+    session = active_session()
+    if session:
+        dialog = _store().get_dialog(session)
+        if dialog.history:
+            lines.append("Earlier in this check-in session:")
+            for turn in dialog.history[-5:]:
+                lines.append(f"- Patient: {turn.get('user', '')} | Companion: {turn.get('assistant', '')}")
     return "\n".join(lines)
 
 
@@ -223,6 +241,7 @@ def assess_warning_signs(plan_id: str, session_id: str, patient_report: str) -> 
     dialog = store.get_dialog(session_id)
     assessment, dialog = evaluate_report(patient_report, plan, dialog)
     store.save_dialog(session_id, dialog)
+    notify_escalation(plan, patient_report, assessment)
     set_turn_assessment(session_id, assessment)
     return render_assessment(assessment)
 

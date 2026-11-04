@@ -81,8 +81,72 @@ def test_missing_appointment_fields_are_filled_before_validation():
         }
     )
     assert payload["appointments"][0]["date"] == "Not stated"
+    assert payload["appointments"][0]["day"] == "Not stated"
     assert payload["warnings"] == ["fever"]
     assert payload["checklist"] == ["Regular diet"]
+
+
+def test_morning_and_evening_become_clock_times_clear_of_an_appointment():
+    plan = _plan(
+        meds=[
+            {
+                "name": "Amoxicillin-Clavulanate",
+                "dose": "875 mg",
+                "purpose": "Antibiotic",
+                "times": ["morning and evening"],
+                "until": "November 4, 2026",
+            },
+            {
+                "name": "Paracetamol",
+                "dose": "500 mg",
+                "purpose": "Fever",
+                "times": ["as needed, up to 4 times a day"],
+                "until": "As needed",
+            },
+        ],
+        appointments=[
+            {
+                "date": "November 3, 2026",
+                "day": "Tuesday",
+                "title": "Follow-up",
+                "who": "Dr. Samir Khoury",
+                "time": "08:00",
+            }
+        ],
+    )
+    completed = complete_plan(
+        plan,
+        "Amoxicillin morning and evening. Paracetamol as needed. Follow up November 3, 2026 at 08:00.",
+    )
+    assert completed.meds[0].times == ["07:00", "20:00"]
+    assert completed.meds[1].times == ["as needed, up to 4 times a day"]
+
+
+def test_a_clock_time_written_in_the_report_is_kept():
+    plan = _plan(
+        meds=[
+            {
+                "name": "Guaifenesin",
+                "dose": "10 ml",
+                "purpose": "Loosens mucus",
+                "times": ["08:00", "14:00", "20:00"],
+                "until": "November 2, 2026",
+            }
+        ]
+    )
+    completed = complete_plan(plan, "Guaifenesin at 08:00, 14:00, and 20:00. Follow up in two weeks.")
+    assert completed.meds[0].times == ["08:00", "14:00", "20:00"]
+
+
+def test_a_calendar_date_fills_the_weekday():
+    payload = normalize_plan_payload(
+        {
+            "appointments": [
+                {"date": "November 3, 2026", "title": "Primary care follow-up", "who": "Dr. Samir Khoury", "time": "10:30"}
+            ]
+        }
+    )
+    assert payload["appointments"][0]["day"] == "Tuesday"
 
 
 RUSSELL = """

@@ -23,6 +23,7 @@ from carebridge.errors import DocumentError
 _TEXT_SUFFIXES = {".txt", ".md", ".text", ""}
 _SYNC_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".pdf"}
 _MAX_SYNC_BYTES = 5_000_000
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 _MIN_EMBEDDED_CHARS = 80
 _SAMPLE_BANNER = "=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ==="
 
@@ -30,7 +31,7 @@ _SAMPLE_BANNER = "=== CAREBRIDGE SAMPLE. NOT A REAL MEDICAL RECORD. ==="
 def extract_upload(filename: str, data: bytes) -> str:
     if not data:
         raise DocumentError("The upload is empty.")
-    if len(data) > 20 * 1024 * 1024:
+    if len(data) > MAX_UPLOAD_BYTES:
         raise DocumentError("Files must be 20 MB or smaller.")
 
     suffix = Path(filename).suffix.lower()

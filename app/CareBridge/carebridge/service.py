@@ -24,7 +24,8 @@ from carebridge.safety.language import enforce_patient_response
 from carebridge.schema import CarePlan, CheckInReply
 from carebridge.agents.session import normalize_session_id
 from carebridge.plans.store import CareStore
-from carebridge.safety.turn_state import begin_turn, get_turn_assessment
+from carebridge.safety.turn_state import activate_document, begin_turn, get_turn_assessment
+from carebridge.safety.doctor_mail import notify_escalation
 from carebridge.safety.warning_signs import evaluate_report, looks_like_symptom_report
 
 _SAVED = re.compile(r"SAVED plan_id=([A-Za-z0-9_-]+)")
@@ -46,6 +47,7 @@ def seed_sample_plan() -> CarePlan:
 def extract_care_plan(document_text: str, filename: str = "discharge.txt") -> tuple[CarePlan, list[str], str]:
     store = CareStore()
     document_id = store.save_document(document_text, filename)
+    activate_document(document_id)
     trace: list[str] = []
     agent = build_discharge_agent(trace)
     result = agent(
@@ -128,7 +130,9 @@ def _reply_from_plan(plan_id: str, session_id: str, message: str) -> CheckInRepl
     dialog = store.get_dialog(session_id)
     if looks_like_symptom_report(message) or dialog.awaiting_answers:
         assessment, dialog = evaluate_report(message, plan, dialog)
+        dialog.history = [*dialog.history[-9:], {"user": message.strip(), "assistant": assessment.guidance}]
         store.save_dialog(session_id, dialog)
+        notify_escalation(plan, message, assessment)
         return CheckInReply(
             text=assessment.guidance,
             outcome=None if assessment.outcome == "pending" else assessment.outcome,  # type: ignore[arg-type]
@@ -137,7 +141,10 @@ def _reply_from_plan(plan_id: str, session_id: str, message: str) -> CheckInRepl
             trace=["Answered from the care plan"],
         )
     if _SCHEDULE.search(message):
-        return CheckInReply(text=_schedule_text(plan), trace=["Answered from the care plan"])
+        reply_text = _schedule_text(plan)
+        dialog.history = [*dialog.history[-9:], {"user": message.strip(), "assistant": reply_text}]
+        store.save_dialog(session_id, dialog)
+        return CheckInReply(text=reply_text, trace=["Answered from the care plan"])
     return None
 
 

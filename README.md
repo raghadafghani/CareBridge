@@ -55,7 +55,7 @@ flowchart TD
     policy --> reply["text, outcome, questions, summary"]
 ```
 
-A symptom such as chest pain, and a question like "what should I do today?", are answered from the saved plan in `service.py` before an agent is built. The outcome still comes from `warning_signs.py`, the same policy the specialist tool runs. Any other message goes through the follow-up agent and its tools.
+A symptom such as chest pain, and a question like "what should I do today?", are answered from the saved plan in `service.py` before an agent is built. The outcome still comes from `warning_signs.py`, the same policy the specialist tool runs. Each of those turns is appended to the dialog for that session. `load_care_plan` includes the latest of them, so a later agent turn can see a check-in that never entered the model loop. Any other message goes through the follow-up agent and its tools.
 
 ### The agent loop, Module 1
 
@@ -112,16 +112,16 @@ Agent(
 
 | Tool | When the model calls it | What it returns |
 | --- | --- | --- |
-| `read_discharge_document` | Before writing a plan. Argument: `document_id`. | The discharge text. The text is hospital data, not instructions to the agent. |
-| `commit_care_plan` | After the document has been read. Argument: `plan_json`. | `SAVED plan_id=...`, or `ERROR:` and the fields to fix. On `ERROR:`, the model calls the tool again. |
+| `read_discharge_document` | Before writing a plan. Argument: `document_id`. | The discharge text. The text is hospital data, not instructions to the agent. The id is kept for this request. |
+| `commit_care_plan` | After the document has been read. Arguments: `plan_json`, and `document_id` when the model has it. | `SAVED plan_id=...`, or `ERROR:` and the fields to fix. On `ERROR:`, the model calls the tool again. |
 
-`commit_care_plan` fills blank appointments, checklist lines, and confirmation flags from sentences already in the document, then rejects a plan that pastes the raw note into `patient.plain`.
+`commit_care_plan` uses the document id recorded for this request. If that id is missing or not found, it falls back to the newest saved file. It fills blank appointments, checklist lines, and confirmation flags from sentences already in the document, turns a meal phrase such as "morning" into a clock time, and rejects a plan that pastes the raw note into `patient.plain`.
 
 ### Check-in tools
 
 | Tool | When the model calls it | What it returns |
 | --- | --- | --- |
-| `load_care_plan` | Before answering about medications, appointments, or symptoms. | Diagnosis, warning signs, open questions, and medications. |
+| `load_care_plan` | Before answering about medications, appointments, or symptoms. | Diagnosis, warning signs, open questions, medications, and recent fast-path turns from this session. |
 | `today_recovery_schedule` | When the patient asks what to do today. Not for judging a symptom. | Today's medicines, checklist, and appointments. |
 | `explain_medication` | What a medicine is for, when to take it, or how long to continue it. | That medicine as the plan records it, or `ERROR:` if the name is not on the plan. |
 | `safety_review_specialist` | Once, for a symptom, a measurement, or a missed dose. | The outcome and the guidance to tell the patient. |
@@ -171,7 +171,9 @@ Only the follow-up agent gets a session manager. Module 6 says the specialist mu
 
 `normalize_session_id` strips path characters and pads ids shorter than 33 characters, which AgentCore requires. `SlidingWindowConversationManager(window_size=20)` bounds what the model sees. The session manager stores the history. The window is separate, as in the workshop.
 
-The care plan itself is not session memory. `plans/store.py` saves the plan, the document, and the escalation dialog as JSON so a tool reads the dose from disk instead of from the prompt.
+The care plan itself is not session memory. `plans/store.py` saves the plan, the document, and the escalation dialog as JSON so a tool reads the dose from the store instead of from the prompt. The dialog also keeps the last fast-path turns.
+
+When `CAREBRIDGE_SESSION_BUCKET` is set, the same store writes those JSON files to `s3://<bucket>/carebridge/store/` and reads them back when the local file is missing. Session transcripts stay under the prefix `carebridge/sessions`. The deployed runtime sets `CAREBRIDGE_DATA_DIR` to `/tmp/carebridge`, so set the bucket if a plan saved on one invocation has to be there for the next.
 
 ## Module 5 — AgentCore Runtime
 
@@ -224,7 +226,7 @@ pip install -e ".[evals]"
 python evals/run_evals.py
 ```
 
-This calls Bedrock. `pytest` locks the same gates without a model.
+This calls Bedrock. `pytest` locks the same gates without a model. `.github/workflows/test.yml` runs those tests on Python 3.13, then `npm run lint` and `npm test` in `web/`.
 
 ## The rest of the files
 
@@ -232,22 +234,26 @@ These files are in `app/CareBridge/carebridge/`. They are the application around
 
 | File | What it does |
 | --- | --- |
-| `api.py` | FastAPI for the screens: upload, latest plan, check-in, proactive check-in, and the raw AgentCore payload. |
-| `service.py` | Upload runs the discharge agent once. Check-in either answers from the plan or runs the follow-up agent. `seed_sample_plan` stores Maria Haddad with no model call. |
+| `api.py` | FastAPI for the screens: upload, latest plan, check-in, proactive check-in, Google Calendar, and the raw AgentCore payload. An upload is read only up to 20 MB plus one byte. |
+| `service.py` | Upload runs the discharge agent once and binds that document id to the request. Check-in either answers from the plan or runs the follow-up agent. `seed_sample_plan` stores Maria Haddad with no model call. |
 | `schema.py` | `CarePlan` and `CheckInReply`. Field names match the React pages. |
-| `documents.py` | Reads `.txt` directly. PDF and photos go through Amazon Textract. A bucket in `CAREBRIDGE_DOCUMENT_BUCKET` is used for multi-page PDFs. |
-| `config.py` | Region, model ids, data directory, session bucket, steering flag, tool cap. Reads `.env`. |
+| `documents.py` | Reads `.txt` directly. A PDF that already has a text layer is read locally, including multiple pages. Scanned PDFs and photos go through Amazon Textract. `CAREBRIDGE_DOCUMENT_BUCKET` is the S3 bucket for a multi-page scan. |
+| `config.py` | Region, model ids, data directory, session bucket, document bucket, steering flag, tool cap, CORS origins, calendar, and clinician email. Reads `.env`. |
 | `cli.py` | `harness`, `seed`, `extract`, `chat`, `serve`. `chat` is the workshop's multi-turn loop. |
 | `errors.py` | `CareBridgeError`, `DocumentError`, `PlanNotFound`. |
-| `plans/store.py` | JSON files for documents, plans, and dialog state under `.carebridge/`. |
-| `plans/quality.py` | Rejects a pasted discharge note and fills sections the document already supports. |
-| `safety/warning_signs.py` | The escalation policy and the dialog state machine. |
+| `google_calendar.py` | Google sign-in and one calendar event per visit. The browser never sees the client secret. |
+| `plans/store.py` | JSON for documents, plans, and dialog state under `.carebridge/`, mirrored to S3 when the session bucket is set. |
+| `plans/quality.py` | Rejects a pasted discharge note, fills sections the document already supports, and turns meal phrases into clock times. |
+| `safety/warning_signs.py` | The escalation policy and the dialog state machine, including fast-path history. |
 | `safety/language.py` | Rejects patient-visible text that diagnoses, changes a dose, or softens an emergency. The API substitutes the policy sentence when a draft fails. |
 | `safety/messages.py` | Reads text out of Strands message blocks, including a Guide stop. |
-| `safety/turn_state.py` | Holds this turn's assessment so the reply check can see the tool outcome. |
+| `safety/turn_state.py` | This request's assessment and the document id just read. Both are per request, so one check-in cannot file its outcome under another session. |
+| `safety/doctor_mail.py` | Emails the configured clinician on emergency or review. A missing address or a failed send does not change the patient's reply. |
 | `web/src/routes/upload.tsx` | Upload screen. |
 | `web/src/routes/plan.tsx` | Care plan screen. |
-| `web/src/routes/check-in.tsx` | Check-in screen. |
+| `web/src/routes/check-in.tsx` | Check-in screen. Text or voice. |
+| `web/src/lib/plan-schedule.ts` | Meal times, dose lines, and which appointments have a real date. |
+| `web/src/components/appointment-calendar.tsx` | Month view and the Google Calendar actions. |
 | `web/src/lib/care-api.ts` | Calls the API and keeps the active plan in the browser. |
 | `web/src/lib/example-plan.ts` | Homepage illustration only. A real plan comes from an upload. |
 
@@ -288,6 +294,11 @@ carebridge extract app/CareBridge/carebridge/sample_data/maria_haddad_discharge.
 | `GET` | `/v1/plans/{plan_id}` | One care plan. |
 | `POST` | `/v1/check-ins` | Check-in. Body: `plan_id`, `session_id`, `message`. |
 | `POST` | `/v1/check-ins/proactive` | Daily check-in. Same payload as AgentCore `proactive_check_in`. |
+| `GET` | `/v1/calendar/status` | Whether Google Calendar is configured and connected. |
+| `GET` | `/v1/calendar/connect` | Starts Google sign-in. |
+| `GET` | `/v1/calendar/callback` | Google returns here. Then the browser goes back to the care plan page. |
+| `POST` | `/v1/calendar/disconnect` | Removes the saved Google token. |
+| `POST` | `/v1/calendar/events` | Creates or updates one event per visit. Body: `plan_id`. |
 | `POST` | `/v1/agent` | Raw AgentCore payload, for local callers. |
 
 Check-in response:
@@ -307,10 +318,11 @@ Check-in response:
 ## Safety
 
 - Universal emergencies (chest pain, trouble breathing, coughing blood, new confusion, bluish lips) are code in `safety/warning_signs.py`.
-- A high blood-pressure reading is clinician review. The word "blood" alone is not bleeding.
+- A reading of 180 systolic or 120 diastolic starts as pending questions. The next reply is review. The word "blood" alone is not bleeding.
 - No tool changes a dose. `MedicationBoundaryHook` also cancels tool arguments that ask for one.
 - `ClinicalBoundaryHandler` rejects drafts that soften an emergency or call a symptom normal.
 - If the draft still fails, `safety/language.py` substitutes the policy text.
+- Emergency and review can email `CAREBRIDGE_DOCTOR_EMAIL`. Without an SMTP host, the notice is saved under `.carebridge/doctor_mail/`.
 - The sample discharge is fictional. This is not a medical device and not a substitute for the care team.
 
 ## Deploy
@@ -356,7 +368,7 @@ agentcore invoke --runtime CareBridge \
 
 The session id must be at least 33 characters. After deploy, AgentCore sets `MEMORY_CAREBRIDGEMEMORY_ID` and check-in memory uses it. Until then, memory stays in `.carebridge`.
 
-Set `CAREBRIDGE_DOCUMENT_BUCKET` so multi-page PDFs are read with asynchronous Textract. A daily check-in is `"action": "proactive_check_in"`.
+Set `CAREBRIDGE_DOCUMENT_BUCKET` so a multi-page scan is read with asynchronous Textract. A digital PDF does not need that bucket. Set `CAREBRIDGE_SESSION_BUCKET` as well if the care plan has to outlive the runtime's `/tmp` disk. A daily check-in is `"action": "proactive_check_in"`.
 
 ## Configuration
 
@@ -367,8 +379,14 @@ See `.env.example`.
 | `AWS_REGION` | Bedrock and session storage. Workshop region is `us-east-1`. |
 | `CAREBRIDGE_MODEL_ID` | Discharge model. Empty uses the Strands default. This project pins Amazon Nova Pro. |
 | `CAREBRIDGE_CHECKIN_MODEL_ID` | Shorter check-in model. This project pins Amazon Nova Lite. |
-| `CAREBRIDGE_DATA_DIR` | Local plans, documents, and dialogs. Default `.carebridge`. |
-| `CAREBRIDGE_SESSION_BUCKET` | Switches Module 4 memory to S3. |
-| `CAREBRIDGE_DOCUMENT_BUCKET` | Multi-page PDFs through Textract. |
+| `CAREBRIDGE_DATA_DIR` | Local plans, documents, and dialogs. Default `.carebridge`. The deployed runtime uses `/tmp/carebridge`. |
+| `CAREBRIDGE_SESSION_BUCKET` | Module 4 session memory in S3, and the care-plan store mirror under `carebridge/store/`. |
+| `CAREBRIDGE_DOCUMENT_BUCKET` | Multi-page scans through asynchronous Textract. |
 | `CAREBRIDGE_LLM_STEERING` | `0` skips the tone model and keeps deterministic steering. |
 | `CAREBRIDGE_MAX_TOOL_CALLS` | Module 2 cap per tool on a check-in turn. |
+| `CAREBRIDGE_CORS_ORIGINS` | Comma-separated browser origins for the API. Empty allows any origin. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Calendar sign-in. Redirect URI defaults to `http://127.0.0.1:8787/v1/calendar/callback`. |
+| `CAREBRIDGE_APP_URL` | Page Google returns to after sign-in. Default `http://127.0.0.1:8080/plan`. |
+| `CAREBRIDGE_TIMEZONE` | Time zone on timed calendar events. Default `Asia/Beirut`. |
+| `CAREBRIDGE_DOCTOR_EMAIL` | Clinician address for emergency and review notices. |
+| `CAREBRIDGE_SMTP_HOST`, `CAREBRIDGE_SMTP_PORT`, `CAREBRIDGE_SMTP_USER`, `CAREBRIDGE_SMTP_PASSWORD`, `CAREBRIDGE_SMTP_FROM`, `CAREBRIDGE_SMTP_TLS` | How that notice is sent. No host means the draft is saved locally. |

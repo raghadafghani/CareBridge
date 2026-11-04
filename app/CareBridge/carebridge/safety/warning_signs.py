@@ -68,12 +68,14 @@ class DialogState(BaseModel):
     """Check-in progress that must survive a new HTTP request.
 
     Strands session memory stores the conversation (Module 4). This object
-    stores the escalation state machine, which is application data, not
-    model memory: whether we are waiting for answers to a pending question.
+    stores the escalation state machine and fast-path turns, which is
+    application data: whether we are waiting for answers to a pending question
+    and what the patient already reported in this session.
     """
 
     awaiting_answers: bool = False
     reports: list[str] = Field(default_factory=list)
+    history: list[dict[str, str]] = Field(default_factory=list)
 
 
 class Assessment(BaseModel):

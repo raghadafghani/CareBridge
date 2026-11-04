@@ -9,6 +9,7 @@ to sort information the document already contains into the right fields.
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 from carebridge.schema import CarePlan
 
@@ -40,13 +41,15 @@ def normalize_plan_payload(payload: dict) -> dict:
         if not isinstance(item, dict):
             continue
         appointments.append(
-            {
-                "date": _text(item.get("date") or item.get("when"), "Not stated"),
-                "day": _text(item.get("day"), "Not stated"),
-                "title": _text(item.get("title") or item.get("name"), "Follow-up"),
-                "who": _text(item.get("who") or item.get("with") or item.get("clinician"), "Not stated"),
-                "time": _text(item.get("time"), "Not stated"),
-            }
+            _with_weekday(
+                {
+                    "date": _text(item.get("date") or item.get("when"), "Not stated"),
+                    "day": _text(item.get("day"), "Not stated"),
+                    "title": _text(item.get("title") or item.get("name"), "Follow-up"),
+                    "who": _text(item.get("who") or item.get("with") or item.get("clinician"), "Not stated"),
+                    "time": _text(item.get("time"), "Not stated"),
+                }
+            )
         )
     payload["appointments"] = appointments
     payload["warnings"] = [_warning_text(item) for item in payload.get("warnings") or [] if _warning_text(item)]
@@ -98,6 +101,7 @@ def complete_plan(plan: CarePlan, source: str) -> CarePlan:
     if _HOME_CARE.search(source) and not plan.checklist:
         data["checklist"] = _tasks_from_source(source)
     data["meds"] = [_grounded_med(med.model_dump(), source) for med in plan.meds]
+    data["meds"] = _with_day_labels(data["meds"], data.get("appointments") or [])
     drafted = CarePlan.model_validate(data)
     data["flags"] = _with_required_flags(drafted)
     drafted = CarePlan.model_validate(data)
@@ -128,13 +132,15 @@ def _follow_up_appointment(source: str) -> dict[str, str]:
         who = "Your regular physician"
     else:
         who = "Not stated"
-    return {
-        "date": when,
-        "day": "Not stated",
-        "title": "Follow-up",
-        "who": who,
-        "time": clock.group(1).upper() if clock else "Not stated",
-    }
+    return _with_weekday(
+        {
+            "date": when,
+            "day": "Not stated",
+            "title": "Follow-up",
+            "who": who,
+            "time": clock.group(1).upper() if clock else "Not stated",
+        }
+    )
 
 
 def _fill_appointment_blanks(plan: CarePlan, source: str) -> list[dict]:
@@ -148,12 +154,35 @@ def _fill_appointment_blanks(plan: CarePlan, source: str) -> list[dict]:
             row["date"] = extracted["date"]
         if _blank(row.get("time")) and not _blank(extracted["time"]):
             row["time"] = extracted["time"]
-        filled.append(row)
+        filled.append(_with_weekday(row))
     return filled
 
 
 def _blank(value: object) -> bool:
     return str(value or "").strip().casefold() in {"", "not stated", "unknown"}
+
+
+_DATE_FORMATS = ("%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%b %d %Y", "%m/%d/%Y", "%m/%d/%y")
+
+
+def _weekday_name(date: str) -> str | None:
+    """Tuesday for a full calendar date. A phrase like 'in two weeks' stays blank."""
+    text = date.strip().replace(",", ", ")
+    text = re.sub(r",\s+", ", ", text)
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(text, fmt).strftime("%A")
+        except ValueError:
+            continue
+    return None
+
+
+def _with_weekday(row: dict) -> dict:
+    if _blank(row.get("day")):
+        named = _weekday_name(str(row.get("date") or ""))
+        if named:
+            row["day"] = named
+    return row
 
 
 def _follow_up_window(source: str) -> str:
@@ -181,6 +210,101 @@ def _grounded_med(med: dict, source: str) -> dict:
     if numbers and any(number not in source for number in numbers):
         med["dose"] = "Amount not stated in the report"
     return med
+
+
+_EXPLICIT_AMPM = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?\b", re.IGNORECASE)
+_EXPLICIT_CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})\b")
+_AS_NEEDED = re.compile(r"\bas needed\b|\bprn\b|\bup to\b", re.IGNORECASE)
+_PARTS_OF_DAY = (
+    (re.compile(r"\b(?:morning|breakfast)\b", re.IGNORECASE), 8 * 60),
+    (re.compile(r"\b(?:noon|midday|lunch)\b", re.IGNORECASE), 12 * 60),
+    (re.compile(r"\bafternoon\b", re.IGNORECASE), 14 * 60),
+    (re.compile(r"\b(?:evening|dinner|supper)\b", re.IGNORECASE), 20 * 60),
+    (re.compile(r"\b(?:bedtime|night)\b", re.IGNORECASE), 21 * 60),
+)
+_FREQUENCIES = (
+    (re.compile(r"\b(?:four times|4 times|qid)\b", re.IGNORECASE), (8 * 60, 12 * 60, 16 * 60, 20 * 60)),
+    (re.compile(r"\b(?:three times|3 times|tid)\b", re.IGNORECASE), (8 * 60, 14 * 60, 20 * 60)),
+    (re.compile(r"\b(?:twice|two times|2 times|bid)\b", re.IGNORECASE), (8 * 60, 20 * 60)),
+    (re.compile(r"\b(?:once|one time|daily|every day)\b", re.IGNORECASE), (8 * 60,)),
+)
+
+
+def _with_day_labels(meds: list, appointments: list) -> list:
+    return [_with_clock_times(med, appointments) for med in meds]
+
+
+def _with_clock_times(med: dict, appointments: list) -> dict:
+    """Turn morning/evening into hours. Leave a clock time the report stated."""
+    times = [str(item) for item in med.get("times") or []]
+    text = " ".join(times)
+    stated = _explicit_minutes(text)
+    if stated:
+        med["times"] = [_format_clock(minute) for minute in _unique(stated)]
+        return med
+    busy = _appointment_minutes(appointments)
+    parts = [minute for pattern, minute in _PARTS_OF_DAY if pattern.search(text)]
+    if parts:
+        med["times"] = [_format_clock(_avoid(minute, busy)) for minute in _unique(parts)]
+        return med
+    if _AS_NEEDED.search(text):
+        return med
+    for pattern, slots in _FREQUENCIES:
+        if pattern.search(text):
+            chosen: list[int] = []
+            used = set(busy)
+            for minute in slots:
+                slot = _avoid(minute, used)
+                used.add(slot)
+                chosen.append(slot)
+            med["times"] = [_format_clock(minute) for minute in chosen]
+            return med
+    return med
+
+
+def _explicit_minutes(text: str) -> list[int]:
+    ampm = []
+    for match in _EXPLICIT_AMPM.finditer(text):
+        hours = int(match.group(1))
+        minutes = int(match.group(2) or 0)
+        if match.group(3).lower() == "p" and hours < 12:
+            hours += 12
+        if match.group(3).lower() == "a" and hours == 12:
+            hours = 0
+        ampm.append(hours * 60 + minutes)
+    if ampm:
+        return ampm
+    return [int(match.group(1)) * 60 + int(match.group(2)) for match in _EXPLICIT_CLOCK.finditer(text)]
+
+
+def _appointment_minutes(appointments: list) -> set[int]:
+    busy: set[int] = set()
+    for item in appointments:
+        when = item.get("time") if isinstance(item, dict) else getattr(item, "time", "")
+        busy.update(_explicit_minutes(str(when or "")))
+    return busy
+
+
+def _avoid(minute: int, busy: set[int]) -> int:
+    if minute not in busy:
+        return minute
+    for delta in (-60, 60, -30, 30, -90, 90, -120, 120):
+        candidate = minute + delta
+        if 6 * 60 <= candidate <= 22 * 60 and candidate not in busy:
+            return candidate
+    return minute
+
+
+def _format_clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+def _unique(values: list[int]) -> list[int]:
+    seen: list[int] = []
+    for value in values:
+        if value not in seen:
+            seen.append(value)
+    return seen
 
 
 def _with_required_flags(plan: CarePlan) -> list[dict]:

@@ -74,3 +74,87 @@ def test_unsafe_model_text_is_replaced_by_the_tool_guidance():
     assert enforce_patient_response(safe, emergency) == safe
 
     assert "dose" in enforce_patient_response("You should double the dose.", None).lower()
+
+
+def test_commit_care_plan_uses_the_active_document_instead_of_newest_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAREBRIDGE_DATA_DIR", str(tmp_path))
+    from carebridge.agents.tools import commit_care_plan, read_discharge_document
+
+    store = CareStore()
+    first_id = store.save_document(
+        "Patient: Maria Haddad. Discharged Oct 28, 2026 from St. Luke's. "
+        "Diagnosis: Pneumonia. Amoxicillin 875 mg morning and evening until Nov 4. "
+        "Warning signs: chest pain.",
+        "maria.txt",
+    )
+    store.save_document(
+        "Patient: Unrelated Patient. Discharged Oct 29, 2026. Diagnosis: Sprain. Ibuprofen 200 mg.",
+        "other.txt",
+    )
+
+    read_discharge_document(first_id)
+    sample = Path(__file__).resolve().parents[1] / "app/CareBridge/carebridge/sample_data/maria_haddad_plan.json"
+    result = commit_care_plan(sample.read_text())
+    assert "SAVED plan_id=maria-haddad" in result
+    saved = store.get_plan("maria-haddad")
+    assert saved.meds[0].dose == "875 mg tablet"
+
+
+def test_fast_path_check_in_records_session_history_for_later_turns(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAREBRIDGE_DATA_DIR", str(tmp_path))
+    from carebridge.agents.session import normalize_session_id
+    from carebridge.agents.tools import load_care_plan
+    from carebridge.service import run_check_in, seed_sample_plan
+    from carebridge.safety.turn_state import begin_turn
+
+    seed_sample_plan()
+    normalized = normalize_session_id("maria-session")
+    reply = run_check_in("maria-haddad", "maria-session", "What should I do today?")
+    assert "Amoxicillin-Clavulanate" in reply.text
+
+    dialog = CareStore().get_dialog(normalized)
+    assert len(dialog.history) == 1
+    assert dialog.history[0]["user"] == "What should I do today?"
+
+    begin_turn(normalized)
+    loaded = load_care_plan("maria-haddad")
+    assert "Earlier in this check-in session:" in loaded
+    assert "What should I do today?" in loaded
+
+
+def test_care_store_hydrates_from_s3_on_local_cache_miss(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAREBRIDGE_DATA_DIR", str(tmp_path / "node1"))
+    monkeypatch.setenv("CAREBRIDGE_SESSION_BUCKET", "carebridge-test-bucket")
+    objects: dict[str, bytes] = {}
+
+    class FakeBody:
+        def __init__(self, data: bytes) -> None:
+            self._data = data
+
+        def read(self) -> bytes:
+            return self._data
+
+    class FakeS3:
+        def put_object(self, *, Bucket, Key, Body, ContentType):
+            assert Bucket == "carebridge-test-bucket"
+            objects[Key] = Body
+
+        def get_object(self, *, Bucket, Key):
+            assert Bucket == "carebridge-test-bucket"
+            if Key not in objects:
+                raise KeyError(Key)
+            return {"Body": FakeBody(objects[Key])}
+
+    import boto3
+
+    monkeypatch.setattr(boto3, "client", lambda service, **kwargs: FakeS3())
+    sample = Path(__file__).resolve().parents[1] / "app/CareBridge/carebridge/sample_data/maria_haddad_plan.json"
+    plan = CarePlan.model_validate(json.loads(sample.read_text()))
+    CareStore().save_plan(plan)
+
+    monkeypatch.setenv("CAREBRIDGE_DATA_DIR", str(tmp_path / "node2"))
+    second_node = CareStore()
+    assert second_node.latest_plan_id() == "maria-haddad"
+    restored = second_node.get_plan("maria-haddad")
+    assert restored.patient.name == "Maria Haddad"
+

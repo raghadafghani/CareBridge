@@ -53,6 +53,14 @@ class Settings:
     document_bucket: str | None
     llm_steering: bool
     max_tool_calls: int
+    doctor_email: str | None
+    smtp_host: str | None
+    smtp_port: int
+    smtp_user: str | None
+    smtp_password: str | None
+    smtp_from: str | None
+    smtp_tls: bool
+    cors_origins: tuple[str, ...] = ("*",)
 
     @property
     def package_dir(self) -> Path:
@@ -82,4 +90,27 @@ def get_settings() -> Settings:
         document_bucket=documents,
         llm_steering=_flag("CAREBRIDGE_LLM_STEERING", True),
         max_tool_calls=max(1, max_calls),
+        doctor_email=os.getenv("CAREBRIDGE_DOCTOR_EMAIL", "").strip() or None,
+        smtp_host=os.getenv("CAREBRIDGE_SMTP_HOST", "").strip() or None,
+        smtp_port=_port("CAREBRIDGE_SMTP_PORT", 587),
+        smtp_user=os.getenv("CAREBRIDGE_SMTP_USER", "").strip() or None,
+        smtp_password=os.getenv("CAREBRIDGE_SMTP_PASSWORD", "").strip() or None,
+        smtp_from=os.getenv("CAREBRIDGE_SMTP_FROM", "").strip() or None,
+        smtp_tls=_flag("CAREBRIDGE_SMTP_TLS", True),
+        cors_origins=_origins("CAREBRIDGE_CORS_ORIGINS"),
     )
+
+
+def _origins(name: str) -> tuple[str, ...]:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return ("*",)
+    parsed = tuple(part.strip() for part in raw.split(",") if part.strip())
+    return parsed or ("*",)
+
+
+def _port(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default

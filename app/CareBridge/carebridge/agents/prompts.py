@@ -17,7 +17,31 @@ Sort the document into fields. Do not paste it into patient.plain.
 patient.plain is 2 or 3 everyday sentences: why they were in hospital, and what
 to do at home. Under 420 characters.
 If the document says to follow up, add an appointment. A phrase like
-"in two to three weeks" is the date. Use "Not stated" when no clock time is written.
+"in two to three weeks" is the date. Use "Not stated" for an appointment clock
+time the document does not give.
+Each medication times entry is a pharmacist label, not a clock time.
+Use only these labels, in this day order: before breakfast, after breakfast,
+before lunch, after lunch, before dinner, after dinner, before bed.
+Keep a label the document already uses. Do not turn it into an hour.
+When the document gives a clock time or a vague phrase, choose the label:
+morning or breakfast is after breakfast, afternoon or lunch is after lunch,
+evening or dinner is after dinner, bedtime or night is before bed.
+before breakfast, after breakfast, before lunch, after lunch, before dinner,
+after dinner, and before bed stay as written.
+"Twice a day" is after breakfast and after dinner.
+"Three times a day" is after breakfast, after lunch, and after dinner.
+"Four times a day" is after breakfast, after lunch, after dinner, and before bed.
+"Once a day" is after breakfast.
+"Before meals" is before breakfast, before lunch, and before dinner.
+"After meals" is after breakfast, after lunch, and after dinner.
+Leave "as needed", "PRN", and "up to N times a day" as written. Those stay off the day schedule.
+Do not give two medicines the same label. If the next dose wants a label already used,
+move it to the next free label later in the day, then the next free label earlier.
+Two "after dinner" doses become after dinner and before bed.
+Two morning doses become after breakfast and before lunch.
+A three-times-a-day medicine keeps three different labels spread across the day.
+A dose label must not match an appointment's time of day. Move that dose to the next
+free label, later then earlier.
 Turn home instructions such as diet and activity into checklist lines.
 Copy a warning sign into warnings only when the document lists one.
 When it lists none, add a flag with level "missing" and title "No warning signs listed".

@@ -65,26 +65,40 @@
   --border: oklch(0.89 0.015 85);
   --input: oklch(0.89 0.015 85);
   --ring: oklch(0.42 0.08 190);
-  --gradient-hero: radial-gradient(ellipse at 80% 0%, oklch(0.9 0.06 170 / 0.7), transparent 55%),
+  --gradient-hero:
+    radial-gradient(ellipse at 80% 0%, oklch(0.9 0.06 170 / 0.7), transparent 55%),
     radial-gradient(ellipse at 0% 100%, oklch(0.88 0.08 50 / 0.5), transparent 50%);
   --shadow-soft: 0 20px 50px -24px oklch(0.3 0.06 200 / 0.25);
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
-  h1, h2, h3 { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
 }
 
-@utility bg-hero { background-image: var(--gradient-hero); }
-@utility shadow-soft { box-shadow: var(--shadow-soft); }
+@utility bg-hero {
+  background-image: var(--gradient-hero);
+}
+@utility shadow-soft {
+  box-shadow: var(--shadow-soft);
+}
 @utility grid-lines {
-  background-image: linear-gradient(var(--color-border) 1px, transparent 1px),
+  background-image:
+    linear-gradient(var(--color-border) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
   background-size: 48px 48px;
 }
@@ -93,4 +107,29 @@
   stroke-dashoffset: 600;
   animation: draw 3s ease-in-out infinite;
 }
-@keyframes draw { 60%, 100% { stroke-dashoffset: 0; } }
+@keyframes draw {
+  60%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes scan-bar {
+  0% {
+    top: 0;
+  }
+  50% {
+    top: calc(100% - 4rem);
+  }
+  100% {
+    top: 0;
+  }
+}
+.scan-bar {
+  animation: scan-bar 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan-bar {
+    animation: none;
+    top: 40%;
+  }
+}
