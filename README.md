@@ -8,6 +8,34 @@ This is the agent for the [Strands SDK: Workshop to Ship](https://builder.aws.co
 
 The layout matches the [AgentCore getting started sample](https://github.com/awslabs/agentcore-samples/tree/main/00-getting-started): `agentcore/` holds the project config, and `app/CareBridge/` holds the runtime. The Python package lives at `app/CareBridge/carebridge/` so there is one agent tree. The screens are in `web/` (Upload, Care plan, Check-in). They call the API in `app/CareBridge/carebridge/api.py`.
 
+## Screens
+
+### 1. Upload
+
+| Drop the discharge report | Scanning the file |
+| :---: | :---: |
+| ![Upload a discharge report](docs/images/01-upload.png) | ![Scanning a discharge report](docs/images/02-scanning.png) |
+| *The patient drops a PDF, image, or text file. Files can be up to 20 MB.* | *The discharge agent reads medications, appointments, and home-care instructions.* |
+
+### 2. Care plan
+
+| Medicines and today's tasks | Appointments and items to confirm |
+| :---: | :---: |
+| ![Care plan](docs/images/03-care-plan.png) | ![Appointments and flags](docs/images/04-appointments.png) |
+| *Medicines are grouped by time of day, with a checklist for the current day.* | *Follow-up visits sit on a calendar. Conflicts and missing dates stay visible for the care team.* |
+
+### 3. Check-in
+
+| A normal day | Pending |
+| :---: | :---: |
+| ![Today's care plan](docs/images/05-today.png) | ![Pending questions](docs/images/06-pending.png) |
+| *A question about today's plan returns the schedule. It is not scored as a symptom.* | *A fever without a measurement stays pending until the patient answers the follow-up questions.* |
+
+| Needs medical review | Potential emergency |
+| :---: | :---: |
+| ![Needs medical review](docs/images/07-review.png) | ![Potential emergency](docs/images/08-emergency.png) |
+| *A measured fever of 39.2°C is review. CareBridge writes a summary the patient can share.* | *Chest pain stops the questions. The screen says to call emergency services.* |
+
 ## Workshop map
 
 | Workshop | What it taught | What CareBridge uses |
