@@ -1,27 +1,14 @@
 # CareBridge
 
-CareBridge is a post-discharge care companion. A patient uploads a hospital discharge report. One agent turns it into a care plan: medications, appointments, a daily checklist, items to confirm with a clinician, and warning signs. A second agent stays with them at home. A check-in ends as **monitor**, **review**, or **emergency**.
+CareBridge is a post-discharge care companion that helps patients follow their care instructions after leaving the hospital.
 
-It does not diagnose, and it does not change a dose. Escalation is Python. The model explains that decision in plain language.
+Patients upload their hospital discharge report. A Discharge Understanding Agent turns it into a structured care plan containing medications, appointments, daily tasks, questions to confirm with a clinician, and warning signs.
 
-## Try it
+A Follow-up Agent supports patients at home through ongoing check-ins. Each safety assessment results in one of three outcomes: **monitor**, **review**, or **emergency**.
 
-Python 3.11 or newer. The workshop uses 3.13. Bedrock is called in `us-east-1`.
+CareBridge does not diagnose conditions or change medication doses. Safety decisions are handled by deterministic Python rules, while the model explains the results in plain language.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-
-carebridge harness
-carebridge seed
-carebridge serve
-```
-
-The companion app is in `web/`. From that folder, `npm install` then `npm run dev`. It calls the API at `http://127.0.0.1:8787`. Open http://127.0.0.1:5173.
-
-`seed` writes the Maria Haddad plan. No model call.
+The sample discharge is fictional. This is not a medical device and not a substitute for the care team.
 
 ## Screens
 
@@ -44,12 +31,35 @@ The companion app is in `web/`. From that folder, `npm install` then `npm run de
 | A normal day | Pending |
 | :---: | :---: |
 | ![Today's care plan](docs/images/05-today.png) | ![Pending questions](docs/images/06-pending.png) |
-| *The answer is today's medicines, tasks, and appointments.* | *The answer asks the follow-up questions and waits.* |
+| *The agent retrieves today's medications, scheduled tasks, and appointments from the saved care plan.* | *The answer asks the follow-up questions and waits.* |
 
 | Needs medical review | Potential emergency |
 | :---: | :---: |
 | ![Needs medical review](docs/images/07-review.png) | ![Potential emergency](docs/images/08-emergency.png) |
 | *The answer says the check-in needs medical review and shows a summary for the care team.* | *The answer says to call emergency services.* |
+
+## Architecture at a glance
+
+- React frontend (`web/`): document upload, care plan, and patient check-ins.
+- FastAPI (`api.py`): handles requests and coordinates the application workflow.
+- Discharge Understanding Agent: extracts and structures information from discharge reports.
+- Follow-up Agent: answers questions using the saved care plan.
+- Safety specialist: evaluates symptoms through deterministic Python rules. It does not make a second model call.
+- Amazon Bedrock: powers the Strands agents.
+- Amazon S3: stores documents, plans, and session data when configured.
+- Amazon Bedrock AgentCore: hosts the deployed agent runtime. The screens call FastAPI.
+
+## Safety decisions
+
+Safety is not delegated to the language model.
+
+1. Python in `safety/warning_signs.py` evaluates the warning signs.
+2. That policy chooses the outcome.
+3. `safety_review_specialist` returns the outcome to the follow-up agent.
+4. The model tells the patient the guidance in plain language.
+5. Hooks, steering, and `safety/language.py` block a draft that diagnoses, changes a dose, or softens an emergency.
+
+The full rules are in [Safety](#safety).
 
 ## What a visit does
 
@@ -84,7 +94,33 @@ flowchart TD
     policy --> reply["text, outcome, questions, summary"]
 ```
 
-A symptom such as chest pain, and a question like "what should I do today?", are answered from the saved plan in `service.py` before an agent is built. The outcome still comes from `warning_signs.py`, the same policy the specialist tool runs. Each of those turns is appended to the dialog for that session. `load_care_plan` includes the latest of them, so a later agent turn can see a check-in that never entered the model loop. Any other message goes through the follow-up agent and its tools.
+Certain requests are handled directly by the application before invoking the follow-up agent. For example, daily schedule questions are answered from the saved care plan, while symptom-related requests are evaluated through the same deterministic safety policy used by the specialist tool. Each of those turns is appended to the dialog for that session. `load_care_plan` includes the latest of them, so a later agent turn can see a check-in that never entered the model loop. Any other message goes through the follow-up agent and its tools.
+
+## Try it
+
+Python 3.11 or newer. `pyproject.toml` allows 3.11 and newer. The AgentCore runtime is Python 3.13.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env
+
+carebridge harness
+carebridge seed
+carebridge serve
+```
+
+The companion app is in `web/`. From that folder, `npm install` then `npm run dev`. It calls the API at `http://127.0.0.1:8787`. Open http://127.0.0.1:5173.
+
+`seed` writes the Maria Haddad plan. No model call. `serve` starts the API. Google Calendar is optional. The care plan and check-in work without `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+Uploading a report, a check-in that reaches the follow-up agent, and the commands below call Amazon Bedrock in `us-east-1`. They need AWS credentials on the standard chain, with access to the Nova models. `aws sts get-caller-identity` confirms the credentials.
+
+```bash
+carebridge chat --plan maria-haddad
+carebridge extract app/CareBridge/carebridge/sample_data/maria_haddad_discharge.txt
+```
 
 ## Workshop map
 
@@ -93,15 +129,15 @@ This is the agent for the [Strands SDK: Workshop to Ship](https://builder.aws.co
 The layout matches the [AgentCore getting started sample](https://github.com/awslabs/agentcore-samples/tree/main/00-getting-started): `agentcore/` holds the project config, and `app/CareBridge/` holds the runtime. The Python package lives at `app/CareBridge/carebridge/` so there is one agent tree. The screens are in `web/` (Upload, Care plan, Check-in). They call the API in `app/CareBridge/carebridge/api.py`.
 
 
-| Workshop | What it taught | What CareBridge uses |
+| Workshop | Goal in the workshop | What CareBridge uses |
 | --- | --- | --- |
-| Module 1 | `@tool`, `Agent`, the loop, `agent.messages`, `result.metrics` | `agents/tools.py`, `agents/prompts.py`, `agents/model.py`, `agents/loop_inspection.py` |
-| Module 2 | `HookProvider`, `BeforeToolCallEvent.cancel_tool`, rate limiter | `agents/hooks.py` |
-| Module 3 | `SKILL.md`, `SteeringHandler` Proceed / Guide, `LLMSteeringHandler` | `agents/skills/`, `agents/steering.py` |
-| Module 4 | `FileSessionManager`, `S3SessionManager`, sliding window of 20 | `agents/session.py` |
-| Module 5 | `BedrockAgentCoreApp`, `@app.entrypoint` | `app/CareBridge/main.py`, `runtime.py` |
-| Module 6 | A specialist exposed as one `@tool`, no inner session, no nested model loop | `agents/specialists.py` |
-| Module 7 | `OutputEvaluator`, `TrajectoryEvaluator` | `evals/run_evals.py` |
+| Module 1 | Build the agent loop on Amazon Bedrock: a model, a prompt, and tools, then inspect the loop. The lab tools look up a customer, list orders, and issue a refund. | `agents/tools.py`, `agents/prompts.py`, `agents/model.py`, `agents/loop_inspection.py` |
+| Module 2 | Cap runaway tool calls with a hook. The hook is a rate limiter written in deterministic code. | `agents/hooks.py` |
+| Module 3 | Load a markdown procedure only when that job comes up, block a refund until the customer and the order have been looked up, and check the tone of the reply. | `agents/skills/`, `agents/steering.py` |
+| Module 4 | Keep the conversation after a restart. | `agents/session.py` |
+| Module 5 | Host that same agent on Amazon Bedrock AgentCore Runtime. | `app/CareBridge/main.py`, `runtime.py` |
+| Module 6 | Delegate a technical issue to a tech-support specialist. Optional in the workshop. | `agents/specialists.py` |
+| Module 7 | Check the reply and the tool path automatically. Optional in the workshop. | `evals/run_evals.py` |
 
 `app/CareBridge/carebridge/agents/harness.py` is the composition, the way the workshop's final `agent.py` is. `carebridge harness` prints the wired layers without calling a model.
 
@@ -109,7 +145,9 @@ The sections below follow the workshop modules. Running the app only needs the T
 
 ## Module 1 — Agent, prompt, model, tools
 
-Module 1 puts the Bedrock model, the system prompt, and the tools into one `Agent(...)`. CareBridge splits those three pieces and joins them in `harness.py`:
+In the workshop, Module 1 builds a customer-service agent on Amazon Bedrock. The agent has tools to look up a customer, list orders, and issue a refund, and the lab inspects the loop.
+
+CareBridge puts the Bedrock model, the system prompt, and the tools into one `Agent(...)`, then splits those three pieces and joins them in `harness.py`:
 
 ```python
 Agent(
@@ -166,6 +204,8 @@ flowchart LR
 
 ## Module 2 — Hooks
 
+In the workshop, the hook is a rate limiter. Its job is to cap tool calls with deterministic code so the loop cannot run away.
+
 A hook implements `HookProvider` and registers callbacks on loop events. `BeforeToolCallEvent.cancel_tool` skips the tool and sends the reason back to the model.
 
 | Class in `agents/hooks.py` | Workshop event | What it does here |
@@ -190,7 +230,7 @@ Guide is the workshop's refund gate. Here it blocks `commit_care_plan` until the
 
 ## Module 3 — Skills and steering
 
-Skills suggest a procedure. Steering blocks the shortcut. The workshop blocks a refund until the customer and the order have been looked up. CareBridge uses that same Proceed / Guide pair.
+In the workshop, a skill is a markdown procedure loaded only when that job comes up. Steering then blocks a refund until the customer and the order have been looked up, and a guardrail checks the tone of the reply. CareBridge uses that same Proceed / Guide pair.
 
 Skills are `SKILL.md` files, loaded on demand by `AgentSkills`. The harness passes skills and steering handlers in one `plugins` list.
 
@@ -211,6 +251,8 @@ Skills are `SKILL.md` files, loaded on demand by `AgentSkills`. The harness pass
 
 ## Module 4 — Session
 
+In the workshop, the session manager keeps the conversation after the process restarts.
+
 Only the follow-up agent gets a session manager. Module 6 says the specialist must not carry one.
 
 | Store | When |
@@ -226,6 +268,8 @@ The care plan itself is not session memory. `plans/store.py` saves the plan, the
 When `CAREBRIDGE_SESSION_BUCKET` is set, the same store writes those JSON files to `s3://<bucket>/carebridge/store/` and reads them back when the local file is missing. Session transcripts stay under the prefix `carebridge/sessions`. The deployed runtime sets `CAREBRIDGE_DATA_DIR` to `/tmp/carebridge`, so set the bucket if a plan saved on one invocation has to be there for the next.
 
 ## Module 5 — AgentCore Runtime
+
+In the workshop, this module deploys the same agent to Amazon Bedrock AgentCore Runtime.
 
 `app/CareBridge/main.py` is the entrypoint. It builds `BedrockAgentCoreApp`, decorates `invoke` with `@app.entrypoint`, and calls `runtime.invoke_payload`.
 
@@ -258,11 +302,15 @@ flowchart LR
 
 ## Module 6 — Specialist as a tool
 
+In the workshop, this optional module delegates a technical issue to a tech-support specialist.
+
 `safety_review_specialist` is a `@tool` on the follow-up agent, in `agents/specialists.py`. The docstring tells the model when to delegate. Inside, it calls `assess_warning_signs` and returns the outcome string. It does not construct an `Agent`, so it has no session manager and no second Bedrock call.
 
 `assess_warning_signs` in `tools.py` calls `safety/warning_signs.py`. That module is the policy: emergency, review, monitor, or pending. Negation is handled, so "I do not have chest pain" is not an emergency. "Blood pressure" is not treated as bleeding. A reading of 180 systolic or 120 diastolic is sent for clinician review.
 
 ## Module 7 — Evals
+
+In the workshop, this optional module checks two things automatically: the quality of the reply, and whether the agent called the right tools.
 
 `evals/run_evals.py` builds a fresh follow-up agent per case, with `callback_handler=None`, and scores it with the workshop evaluators.
 
@@ -278,43 +326,15 @@ python evals/run_evals.py
 
 This calls Bedrock. `pytest` locks the same gates without a model. `.github/workflows/test.yml` runs those tests on Python 3.13, then `npm run lint` and `npm test` in `web/`.
 
-## The rest of the files
+## Safety
 
-These files are in `app/CareBridge/carebridge/`. They are the application around the workshop layers.
-
-| File | What it does |
-| --- | --- |
-| `api.py` | FastAPI for the screens: upload, latest plan, check-in, proactive check-in, Google Calendar, and the raw AgentCore payload. An upload is read only up to 20 MB plus one byte. |
-| `service.py` | Upload runs the discharge agent once and binds that document id to the request. Check-in either answers from the plan or runs the follow-up agent. `seed_sample_plan` stores Maria Haddad with no model call. |
-| `schema.py` | `CarePlan` and `CheckInReply`. Field names match the React pages. |
-| `documents.py` | Reads `.txt` directly. A PDF that already has a text layer is read locally, including multiple pages. Scanned PDFs and photos go through Amazon Textract. `CAREBRIDGE_DOCUMENT_BUCKET` is the S3 bucket for a multi-page scan. |
-| `config.py` | Region, model ids, data directory, session bucket, document bucket, steering flag, tool cap, CORS origins, calendar, and clinician email. Reads `.env`. |
-| `cli.py` | `harness`, `seed`, `extract`, `chat`, `serve`. `chat` is the workshop's multi-turn loop. |
-| `errors.py` | `CareBridgeError`, `DocumentError`, `PlanNotFound`. |
-| `google_calendar.py` | Google sign-in and one calendar event per visit. The browser never sees the client secret. |
-| `plans/store.py` | JSON for documents, plans, and dialog state under `.carebridge/`, mirrored to S3 when the session bucket is set. |
-| `plans/quality.py` | Rejects a pasted discharge note, fills sections the document already supports, and turns meal phrases into clock times. |
-| `safety/warning_signs.py` | The escalation policy and the dialog state machine, including fast-path history. |
-| `safety/language.py` | Rejects patient-visible text that diagnoses, changes a dose, or softens an emergency. The API substitutes the policy sentence when a draft fails. |
-| `safety/messages.py` | Reads text out of Strands message blocks, including a Guide stop. |
-| `safety/turn_state.py` | This request's assessment and the document id just read. Both are per request, so one check-in cannot file its outcome under another session. |
-| `safety/doctor_mail.py` | Emails the configured clinician on emergency or review. A missing address or a failed send does not change the patient's reply. |
-| `web/src/routes/upload.tsx` | Upload screen. |
-| `web/src/routes/plan.tsx` | Care plan screen. |
-| `web/src/routes/check-in.tsx` | Check-in screen. Text or voice. |
-| `web/src/lib/plan-schedule.ts` | Meal times, dose lines, and which appointments have a real date. |
-| `web/src/components/appointment-calendar.tsx` | Month view and the Google Calendar actions. |
-| `web/src/lib/care-api.ts` | Calls the API and keeps the active plan in the browser. |
-| `web/src/lib/example-plan.ts` | Homepage illustration only. A real plan comes from an upload. |
-
-## Commands that call Bedrock
-
-```bash
-carebridge chat --plan maria-haddad
-carebridge extract app/CareBridge/carebridge/sample_data/maria_haddad_discharge.txt
-```
-
-`chat` and `extract` call Amazon Bedrock. Credentials are the standard AWS chain (`aws sts get-caller-identity`).
+- Universal emergencies (chest pain, trouble breathing, coughing blood, new confusion, bluish lips) are code in `safety/warning_signs.py`.
+- A reading of 180 systolic or 120 diastolic starts as pending questions. The next reply is review. The word "blood" alone is not bleeding.
+- No tool changes a dose. `MedicationBoundaryHook` also cancels tool arguments that ask for one.
+- `ClinicalBoundaryHandler` rejects drafts that soften an emergency or call a symptom normal.
+- If the draft still fails, `safety/language.py` substitutes the policy text.
+- Emergency and review can email `CAREBRIDGE_DOCTOR_EMAIL`. Without an SMTP host, the notice is saved under `.carebridge/doctor_mail/`.
+- The sample discharge is fictional. This is not a medical device and not a substitute for the care team.
 
 ## API
 
@@ -348,16 +368,6 @@ Check-in response:
 
 `outcome` is `monitor`, `review`, or `emergency` once the policy decides. `summary` is present for `review`.
 
-## Safety
-
-- Universal emergencies (chest pain, trouble breathing, coughing blood, new confusion, bluish lips) are code in `safety/warning_signs.py`.
-- A reading of 180 systolic or 120 diastolic starts as pending questions. The next reply is review. The word "blood" alone is not bleeding.
-- No tool changes a dose. `MedicationBoundaryHook` also cancels tool arguments that ask for one.
-- `ClinicalBoundaryHandler` rejects drafts that soften an emergency or call a symptom normal.
-- If the draft still fails, `safety/language.py` substitutes the policy text.
-- Emergency and review can email `CAREBRIDGE_DOCTOR_EMAIL`. Without an SMTP host, the notice is saved under `.carebridge/doctor_mail/`.
-- The sample discharge is fictional. This is not a medical device and not a substitute for the care team.
-
 ## Deploy
 
 Use the npm AgentCore CLI. An older `agentcore` from `bedrock-agentcore-starter-toolkit` can hide it.
@@ -390,7 +400,7 @@ Deploy, or update, the runtime with the same steps the workshop uses (`build`, t
 ./scripts/deploy.sh
 ```
 
-A push to `main` runs that script from `.github/workflows/deploy.yml`. Add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` under the repository's Actions secrets before the first push. The keys need permission to deploy AgentCore in `us-east-1`.
+A push to `main` runs that script from `.github/workflows/deploy.yml`. Add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` under the repository's Actions secrets before the first push. The keys need permission to deploy AgentCore in `us-east-1`. A GitHub OIDC role is a better fit than long-lived access keys when the account can assume a role from Actions.
 
 After deploy, invoke the cloud runtime:
 
@@ -405,7 +415,7 @@ Set `CAREBRIDGE_DOCUMENT_BUCKET` so a multi-page scan is read with asynchronous 
 
 ## Configuration
 
-See `.env.example`.
+See `.env.example`. Nothing there is required to seed the sample plan and open the screens. AWS credentials with Bedrock access in `us-east-1` are required for an upload, `chat`, `extract`, and a check-in that calls the model. Every variable below has a default. Google Calendar, clinician email, SMTP, and both S3 buckets are optional.
 
 | Variable | Used for |
 | --- | --- |
@@ -423,3 +433,32 @@ See `.env.example`.
 | `CAREBRIDGE_TIMEZONE` | Time zone on timed calendar events. Default `Asia/Beirut`. |
 | `CAREBRIDGE_DOCTOR_EMAIL` | Clinician address for emergency and review notices. |
 | `CAREBRIDGE_SMTP_HOST`, `CAREBRIDGE_SMTP_PORT`, `CAREBRIDGE_SMTP_USER`, `CAREBRIDGE_SMTP_PASSWORD`, `CAREBRIDGE_SMTP_FROM`, `CAREBRIDGE_SMTP_TLS` | How that notice is sent. No host means the draft is saved locally. |
+
+## The rest of the files
+
+These files are in `app/CareBridge/carebridge/`. They are the application around the workshop layers.
+
+| File | What it does |
+| --- | --- |
+| `api.py` | FastAPI for the screens: upload, latest plan, check-in, proactive check-in, Google Calendar, and the raw AgentCore payload. An upload is read only up to 20 MB plus one byte. |
+| `service.py` | Upload runs the discharge agent once and binds that document id to the request. Check-in either answers from the plan or runs the follow-up agent. `seed_sample_plan` stores Maria Haddad with no model call. |
+| `schema.py` | `CarePlan` and `CheckInReply`. Field names match the React pages. |
+| `documents.py` | Reads `.txt` directly. A PDF that already has a text layer is read locally, including multiple pages. Scanned PDFs and photos go through Amazon Textract. `CAREBRIDGE_DOCUMENT_BUCKET` is the S3 bucket for a multi-page scan. |
+| `config.py` | Region, model ids, data directory, session bucket, document bucket, steering flag, tool cap, CORS origins, calendar, and clinician email. Reads `.env`. |
+| `cli.py` | `harness`, `seed`, `extract`, `chat`, `serve`. `chat` is the workshop's multi-turn loop. |
+| `errors.py` | `CareBridgeError`, `DocumentError`, `PlanNotFound`. |
+| `google_calendar.py` | Google sign-in and one calendar event per visit. The browser never sees the client secret. |
+| `plans/store.py` | JSON for documents, plans, and dialog state under `.carebridge/`, mirrored to S3 when the session bucket is set. |
+| `plans/quality.py` | Rejects a pasted discharge note, fills sections the document already supports, and turns meal phrases into clock times. |
+| `safety/warning_signs.py` | The escalation policy and the dialog state machine, including fast-path history. |
+| `safety/language.py` | Rejects patient-visible text that diagnoses, changes a dose, or softens an emergency. The API substitutes the policy sentence when a draft fails. |
+| `safety/messages.py` | Reads text out of Strands message blocks, including a Guide stop. |
+| `safety/turn_state.py` | This request's assessment and the document id just read. Both are per request, so one check-in cannot file its outcome under another session. |
+| `safety/doctor_mail.py` | Emails the configured clinician on emergency or review. A missing address or a failed send does not change the patient's reply. |
+| `web/src/routes/upload.tsx` | Upload screen. |
+| `web/src/routes/plan.tsx` | Care plan screen. |
+| `web/src/routes/check-in.tsx` | Check-in screen. Text or voice. |
+| `web/src/lib/plan-schedule.ts` | Meal times, dose lines, and which appointments have a real date. |
+| `web/src/components/appointment-calendar.tsx` | Month view and the Google Calendar actions. |
+| `web/src/lib/care-api.ts` | Calls the API and keeps the active plan in the browser. |
+| `web/src/lib/example-plan.ts` | Homepage illustration only. A real plan comes from an upload. |
