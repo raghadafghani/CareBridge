@@ -4,9 +4,24 @@ CareBridge is a post-discharge care companion. A patient uploads a hospital disc
 
 It does not diagnose, and it does not change a dose. Escalation is Python. The model explains that decision in plain language.
 
-This is the agent for the [Strands SDK: Workshop to Ship](https://builder.aws.com/build/hackathons/8311dcb5-1ece-3d62-a441-2e1c2ad90b86/strands-sdk-workshop-to-ship) hackathon. The layers follow [Building AI Agents with Strands SDK: From Simple Loops to Multi-Agent Swarms](https://catalog.us-east-1.prod.workshops.aws/workshops/083b80d7-5a90-402b-9bb4-19fb53092808/en-US). The workshop builds one customer-service agent in a single file per module. CareBridge uses those same layers for two jobs, so each layer lives in its own file and `harness.py` assembles them.
+## Try it
 
-The layout matches the [AgentCore getting started sample](https://github.com/awslabs/agentcore-samples/tree/main/00-getting-started): `agentcore/` holds the project config, and `app/CareBridge/` holds the runtime. The Python package lives at `app/CareBridge/carebridge/` so there is one agent tree. The screens are in `web/` (Upload, Care plan, Check-in). They call the API in `app/CareBridge/carebridge/api.py`.
+Python 3.11 or newer. The workshop uses 3.13. Bedrock is called in `us-east-1`.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env
+
+carebridge harness
+carebridge seed
+carebridge serve
+```
+
+The companion app is in `web/`. From that folder, `npm install` then `npm run dev`. It calls the API at `http://127.0.0.1:8787`. Open http://127.0.0.1:5173.
+
+`seed` writes the Maria Haddad plan. No model call.
 
 ## Screens
 
@@ -15,42 +30,28 @@ The layout matches the [AgentCore getting started sample](https://github.com/aws
 | Drop the discharge report | Scanning the file |
 | :---: | :---: |
 | ![Upload a discharge report](docs/images/01-upload.png) | ![Scanning a discharge report](docs/images/02-scanning.png) |
-| *The patient drops a PDF, image, or text file. Files can be up to 20 MB.* | *The discharge agent reads medications, appointments, and home-care instructions.* |
+| *A PDF, image, or text file goes in this box. The limit is 20 MB.* | *The report stays on screen while it is read.* |
 
 ### 2. Care plan
 
 | Medicines and today's tasks | Appointments and items to confirm |
 | :---: | :---: |
 | ![Care plan](docs/images/03-care-plan.png) | ![Appointments and flags](docs/images/04-appointments.png) |
-| *Medicines are grouped by time of day, with a checklist for the current day.* | *Follow-up visits sit on a calendar. Conflicts and missing dates stay visible for the care team.* |
+| *Medicines by time of day, and the tasks for today.* | *Follow-up visits on the month calendar, and the items still open for the care team.* |
 
 ### 3. Check-in
 
 | A normal day | Pending |
 | :---: | :---: |
 | ![Today's care plan](docs/images/05-today.png) | ![Pending questions](docs/images/06-pending.png) |
-| *A question about today's plan returns the schedule. It is not scored as a symptom.* | *A fever without a measurement stays pending until the patient answers the follow-up questions.* |
+| *The answer is today's medicines, tasks, and appointments.* | *The answer asks the follow-up questions and waits.* |
 
 | Needs medical review | Potential emergency |
 | :---: | :---: |
 | ![Needs medical review](docs/images/07-review.png) | ![Potential emergency](docs/images/08-emergency.png) |
-| *A measured fever of 39.2°C is review. CareBridge writes a summary the patient can share.* | *Chest pain stops the questions. The screen says to call emergency services.* |
+| *The answer says the check-in needs medical review and shows a summary for the care team.* | *The answer says to call emergency services.* |
 
-## Workshop map
-
-| Workshop | What it taught | What CareBridge uses |
-| --- | --- | --- |
-| Module 1 | `@tool`, `Agent`, the loop, `agent.messages`, `result.metrics` | `agents/tools.py`, `agents/prompts.py`, `agents/model.py`, `agents/loop_inspection.py` |
-| Module 2 | `HookProvider`, `BeforeToolCallEvent.cancel_tool`, rate limiter | `agents/hooks.py` |
-| Module 3 | `SKILL.md`, `SteeringHandler` Proceed / Guide, `LLMSteeringHandler` | `agents/skills/`, `agents/steering.py` |
-| Module 4 | `FileSessionManager`, `S3SessionManager`, sliding window of 20 | `agents/session.py` |
-| Module 5 | `BedrockAgentCoreApp`, `@app.entrypoint` | `app/CareBridge/main.py`, `runtime.py` |
-| Module 6 | A specialist exposed as one `@tool`, no inner session, no nested model loop | `agents/specialists.py` |
-| Module 7 | `OutputEvaluator`, `TrajectoryEvaluator` | `evals/run_evals.py` |
-
-`app/CareBridge/carebridge/agents/harness.py` is the composition, the way the workshop's final `agent.py` is. `carebridge harness` prints the wired layers without calling a model.
-
-## Flows
+## What a visit does
 
 ### Upload a discharge report
 
@@ -85,34 +86,26 @@ flowchart TD
 
 A symptom such as chest pain, and a question like "what should I do today?", are answered from the saved plan in `service.py` before an agent is built. The outcome still comes from `warning_signs.py`, the same policy the specialist tool runs. Each of those turns is appended to the dialog for that session. `load_care_plan` includes the latest of them, so a later agent turn can see a check-in that never entered the model loop. Any other message goes through the follow-up agent and its tools.
 
-### The agent loop, Module 1
+## Workshop map
 
-```mermaid
-flowchart LR
-    input["Patient or upload text"] --> reason["Model reasons"]
-    reason --> select["Selects a tool from the docstring"]
-    select --> hook["Hooks and steering may cancel it"]
-    hook --> run["Python tool runs"]
-    run --> messages["Result goes back into agent.messages"]
-    messages --> reason
-    reason --> done["Final reply"]
-```
+This is the agent for the [Strands SDK: Workshop to Ship](https://builder.aws.com/build/hackathons/8311dcb5-1ece-3d62-a441-2e1c2ad90b86/strands-sdk-workshop-to-ship) hackathon. The layers follow [Building AI Agents with Strands SDK: From Simple Loops to Multi-Agent Swarms](https://catalog.us-east-1.prod.workshops.aws/workshops/083b80d7-5a90-402b-9bb4-19fb53092808/en-US). The workshop builds one customer-service agent in a single file per module. CareBridge uses those same layers for two jobs, so each layer lives in its own file and `harness.py` assembles them.
 
-`loop_inspection.py` prints that loop the way Module 1 does: roles, `toolUse` blocks, cycle count, and token count from `result.metrics`.
+The layout matches the [AgentCore getting started sample](https://github.com/awslabs/agentcore-samples/tree/main/00-getting-started): `agentcore/` holds the project config, and `app/CareBridge/` holds the runtime. The Python package lives at `app/CareBridge/carebridge/` so there is one agent tree. The screens are in `web/` (Upload, Care plan, Check-in). They call the API in `app/CareBridge/carebridge/api.py`.
 
-### Where a tool call can stop
 
-```mermaid
-flowchart TD
-    call["Model asks for a tool"] --> rate["RateLimiterHook"]
-    rate --> dose["MedicationBoundaryHook"]
-    dose --> steer["SteeringHandler Proceed or Guide"]
-    steer -->|Proceed| py["Tool function runs"]
-    steer -->|Guide| back["Reason is returned to the model"]
-    py --> after["ClinicalBoundaryHandler checks the draft reply"]
-```
+| Workshop | What it taught | What CareBridge uses |
+| --- | --- | --- |
+| Module 1 | `@tool`, `Agent`, the loop, `agent.messages`, `result.metrics` | `agents/tools.py`, `agents/prompts.py`, `agents/model.py`, `agents/loop_inspection.py` |
+| Module 2 | `HookProvider`, `BeforeToolCallEvent.cancel_tool`, rate limiter | `agents/hooks.py` |
+| Module 3 | `SKILL.md`, `SteeringHandler` Proceed / Guide, `LLMSteeringHandler` | `agents/skills/`, `agents/steering.py` |
+| Module 4 | `FileSessionManager`, `S3SessionManager`, sliding window of 20 | `agents/session.py` |
+| Module 5 | `BedrockAgentCoreApp`, `@app.entrypoint` | `app/CareBridge/main.py`, `runtime.py` |
+| Module 6 | A specialist exposed as one `@tool`, no inner session, no nested model loop | `agents/specialists.py` |
+| Module 7 | `OutputEvaluator`, `TrajectoryEvaluator` | `evals/run_evals.py` |
 
-Guide is the workshop's refund gate. Here it blocks `commit_care_plan` until the document has been read, and it blocks a symptom answer until the safety specialist has run. Each handler allows two Guide retries, then proceeds. The API still replaces an unsafe sentence with the fixed guidance, so a capped retry is not the last check.
+`app/CareBridge/carebridge/agents/harness.py` is the composition, the way the workshop's final `agent.py` is. `carebridge harness` prints the wired layers without calling a model.
+
+The sections below follow the workshop modules. Running the app only needs the Try it section.
 
 ## Module 1 — Agent, prompt, model, tools
 
@@ -156,6 +149,21 @@ Agent(
 
 There is no tool that changes a dose. The model cannot do that by calling a function that does not exist.
 
+### The agent loop
+
+```mermaid
+flowchart LR
+    input["Patient or upload text"] --> reason["Model reasons"]
+    reason --> select["Selects a tool from the docstring"]
+    select --> hook["Hooks and steering may cancel it"]
+    hook --> run["Python tool runs"]
+    run --> messages["Result goes back into agent.messages"]
+    messages --> reason
+    reason --> done["Final reply"]
+```
+
+`loop_inspection.py` prints that loop the way Module 1 does: roles, `toolUse` blocks, cycle count, and token count from `result.metrics`.
+
 ## Module 2 — Hooks
 
 A hook implements `HookProvider` and registers callbacks on loop events. `BeforeToolCallEvent.cancel_tool` skips the tool and sends the reason back to the model.
@@ -165,6 +173,20 @@ A hook implements `HookProvider` and registers callbacks on loop events. `Before
 | `RateLimiterHook` | `BeforeInvocationEvent` resets the count. `BeforeToolCallEvent` counts the call. | Caps each tool. Check-in uses `CAREBRIDGE_MAX_TOOL_CALLS` (default 3). Discharge allows at least 8 so a rejected plan can be committed again. |
 | `MedicationBoundaryHook` | `BeforeToolCallEvent.cancel_tool` | Cancels `explain_medication`, `commit_care_plan`, or `today_recovery_schedule` when the tool arguments ask to double, increase, or stop a dose. The patient's own question still reaches the safety path. |
 | `LoopTraceHook` | `AfterToolCallEvent` | Records Input, tool selection, tool execution, and Response while the loop runs. |
+
+### Where a tool call can stop
+
+```mermaid
+flowchart TD
+    call["Model asks for a tool"] --> rate["RateLimiterHook"]
+    rate --> dose["MedicationBoundaryHook"]
+    dose --> steer["SteeringHandler Proceed or Guide"]
+    steer -->|Proceed| py["Tool function runs"]
+    steer -->|Guide| back["Reason is returned to the model"]
+    py --> after["ClinicalBoundaryHandler checks the draft reply"]
+```
+
+Guide is the workshop's refund gate. Here it blocks `commit_care_plan` until the document has been read, and it blocks a symptom answer until the safety specialist has run. Each handler allows two Guide retries, then proceeds. The API still replaces an unsafe sentence with the fixed guidance, so a capped retry is not the last check.
 
 ## Module 3 — Skills and steering
 
@@ -285,24 +307,7 @@ These files are in `app/CareBridge/carebridge/`. They are the application around
 | `web/src/lib/care-api.ts` | Calls the API and keeps the active plan in the browser. |
 | `web/src/lib/example-plan.ts` | Homepage illustration only. A real plan comes from an upload. |
 
-## Run locally
-
-Python 3.11 or newer. The workshop uses 3.13. Bedrock is called in `us-east-1`.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-
-carebridge harness
-carebridge seed
-carebridge serve
-```
-
-The companion app is in `web/`. From that folder, `npm install` then `npm run dev`. It calls the API at `http://127.0.0.1:8787`. Open http://127.0.0.1:5173.
-
-`seed` writes the Maria Haddad plan. No model call.
+## Commands that call Bedrock
 
 ```bash
 carebridge chat --plan maria-haddad
@@ -311,7 +316,7 @@ carebridge extract app/CareBridge/carebridge/sample_data/maria_haddad_discharge.
 
 `chat` and `extract` call Amazon Bedrock. Credentials are the standard AWS chain (`aws sts get-caller-identity`).
 
-### API
+## API
 
 | Method | Path | UI |
 | --- | --- | --- |
