@@ -12,21 +12,28 @@ The sample discharge is fictional. This is not a medical device and not a substi
 
 ## Screens
 
-### 1. Upload
+### 1. Home
+
+| Going home | One report in | Upload, understand, follow |
+| :---: | :---: | :---: |
+| ![Home](docs/images/home-1-start.png) | ![What the plan contains](docs/images/home-2-plan.png) | ![Three steps](docs/images/home-3-steps.png) |
+| *The opening asks for a discharge report. The card beside it is an example layout, not a patient record.* | *Plain language, medicines, a calendar, a checklist, and gaps to confirm with a clinician.* | *Upload the report, the agents read it, then the patient follows a daily plan.* |
+
+### 2. Upload
 
 | Drop the discharge report | Scanning the file |
 | :---: | :---: |
 | ![Upload a discharge report](docs/images/01-upload.png) | ![Scanning a discharge report](docs/images/02-scanning.png) |
 | *A PDF, image, or text file goes in this box. The limit is 20 MB.* | *The report stays on screen while it is read.* |
 
-### 2. Care plan
+### 3. Care plan
 
 | Medicines and today's tasks | Appointments and items to confirm |
 | :---: | :---: |
 | ![Care plan](docs/images/03-care-plan.png) | ![Appointments and flags](docs/images/04-appointments.png) |
 | *Medicines by time of day, and the tasks for today.* | *Follow-up visits on the month calendar, and the items still open for the care team.* |
 
-### 3. Check-in
+### 4. Check-in
 
 | A normal day | Pending |
 | :---: | :---: |
