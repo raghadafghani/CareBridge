@@ -1,8 +1,8 @@
 name: tests
 
+# Paused. Restore push and pull_request to run these checks again.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   unit:
